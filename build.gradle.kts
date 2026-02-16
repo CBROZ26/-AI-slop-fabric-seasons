@@ -1,8 +1,3 @@
-import com.matthewprenger.cursegradle.CurseArtifact
-import com.matthewprenger.cursegradle.CurseProject
-import com.matthewprenger.cursegradle.CurseRelation
-import com.matthewprenger.cursegradle.Options
-import org.ajoberstar.grgit.Grgit
 import org.kohsuke.github.GHReleaseBuilder
 import org.kohsuke.github.GitHub
 
@@ -15,9 +10,10 @@ buildscript {
 plugins {
     id("maven-publish")
     id("fabric-loom")
-    id("org.ajoberstar.grgit")
-    id("com.matthewprenger.cursegradle")
-    id("com.modrinth.minotaur")
+    // id("org.ajoberstar.grgit")
+    // id("com.matthewprenger.cursegradle")
+    // id("com.modrinth.minotaur")
+    id("idea")
 }
 
 operator fun Project.get(property: String): String {
@@ -25,17 +21,17 @@ operator fun Project.get(property: String): String {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 version = project["mod_version"]
 group = project["maven_group"]
 
 val environment: Map<String, String> = System.getenv()
-val releaseName = "${name.split("-").joinToString(" ") { it.capitalize() }} ${(version as String).split("+")[0]}"
+val releaseName = "${name.split("-").joinToString(" ") { it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() } }} ${(version as String).split("+")[0]}"
 val releaseType = (version as String).split("+")[0].split("-").let { if(it.size > 1) if(it[1] == "BETA" || it[1] == "ALPHA") it[1] else "ALPHA" else "RELEASE" }
-val releaseFile = "${buildDir}/libs/${base.archivesName.get()}-${version}.jar"
+val releaseFile = "${layout.buildDirectory.asFile.get()}/libs/${base.archivesName.get()}-${version}.jar"
 val cfGameVersion = (version as String).split("+")[1].let{ if(!project["minecraft_version"].contains("-") && project["minecraft_version"].startsWith(it)) project["minecraft_version"] else "$it-Snapshot"}
 
 fun getChangeLog(): String {
@@ -46,13 +42,7 @@ fun getBranch(): String {
     environment["GITHUB_REF"]?.let { branch ->
         return branch.substring(branch.lastIndexOf("/") + 1)
     }
-    val grgit = try {
-        extensions.getByName("grgit") as Grgit
-    }catch (ignored: Exception) {
-        return "unknown"
-    }
-    val branch = grgit.branch.current().name
-    return branch.substring(branch.lastIndexOf("/") + 1)
+    return "unknown"
 }
 
 loom {
@@ -77,7 +67,7 @@ repositories {
 
 dependencies {
     minecraft("com.mojang:minecraft:${project["minecraft_version"]}")
-    mappings("net.fabricmc:yarn:${project["yarn_mappings"]}:v2")
+    mappings(loom.officialMojangMappings())
 
     modImplementation("net.fabricmc:fabric-loader:${project["loader_version"]}")
     modImplementation("net.fabricmc.fabric-api:fabric-api:${project["fabric_version"]}")
@@ -109,7 +99,7 @@ tasks.processResources {
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
-    options.release.set(17)
+    options.release.set(21)
 }
 
 java {
@@ -120,79 +110,25 @@ tasks.jar {
     from("LICENSE")
 }
 
+/*
 //Github publishing
-task("github") {
-    dependsOn(tasks.remapJar)
-    group = "upload"
-
-    onlyIf { environment.containsKey("GITHUB_TOKEN") }
-
-    doLast {
-        val github = GitHub.connectUsingOAuth(environment["GITHUB_TOKEN"])
-        val repository = github.getRepository(environment["GITHUB_REPOSITORY"])
-
-        val releaseBuilder = GHReleaseBuilder(repository, version as String)
-        releaseBuilder.name(releaseName)
-        releaseBuilder.body(getChangeLog())
-        releaseBuilder.commitish(getBranch())
-
-        val ghRelease = releaseBuilder.create()
-        ghRelease.uploadAsset(file(releaseFile), "application/java-archive")
-    }
+tasks.register("github") {
+...
 }
 
 //Curseforge publishing
 curseforge {
-    environment["CURSEFORGE_API_KEY"]?.let { apiKey = it }
-
-    project(closureOf<CurseProject> {
-        id = project["curseforge_id"]
-        changelog = getChangeLog()
-        releaseType = this@Build_gradle.releaseType.toLowerCase()
-        addGameVersion(cfGameVersion)
-        addGameVersion("Fabric")
-
-        mainArtifact(file(releaseFile), closureOf<CurseArtifact> {
-            displayName = releaseName
-            relations(closureOf<CurseRelation> {
-                requiredDependency("fabric-api")
-            })
-        })
-
-        afterEvaluate {
-            uploadTask.dependsOn("remapJar")
-        }
-
-    })
-
-    options(closureOf<Options> {
-        forgeGradleIntegration = false
-    })
+...
 }
 
 //Modrinth publishing
 modrinth {
-    environment["MODRINTH_TOKEN"]?.let { token.set(it) }
-
-    projectId.set(project["modrinth_id"])
-    changelog.set(getChangeLog())
-
-    versionNumber.set(version as String)
-    versionName.set(releaseName)
-    versionType.set(releaseType.toLowerCase())
-
-    uploadFile.set(tasks.remapJar.get())
-
-    gameVersions.add(project["minecraft_version"])
-    loaders.add("fabric")
-
-    dependencies {
-        required.project("fabric-api")
-    }
+...
 }
 tasks.modrinth.configure {
     group = "upload"
 }
+*/
 
 publishing {
     publications {
@@ -214,9 +150,11 @@ publishing {
     }
 }
 
+/*
 idea {
     module {
         isDownloadSources = true
         isDownloadJavadoc = true
     }
 }
+*/
